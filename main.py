@@ -1,7 +1,7 @@
 import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile
 
 from morse import morse
 from morse_game import generate_random_word_and_answer
@@ -29,20 +29,33 @@ async def help_command(message: types.Message):
     await message.reply(
         "Send any text to convert it to Morse code and vice versa.\n\n"
         "or use Available commands:\n"
+        "/learn - Morse Code table\n"
         "/play - Start the game\n"
         "/exit - End the game\n"
         "/help - Show this help message\n"
-        "/u - To display user_id and number of users"
+        "/user - To display user_id and number of users"
     )   
 
 
-@dp.message(Command("u"))
+@dp.message(Command("learn"))
+async def learn_command(message: types.Message):
+    morse_code_image = FSInputFile("images/morsecode.jpg")    
+    await message.reply_photo(
+        photo=morse_code_image,
+        caption="Here's the Morse code chart. Study and try some - I'll try to guess!"
+    )
+
+
+@dp.message(Command("user"))
 async def user_command(message: types.Message):
     user_id = message.from_user.id
     no_of_users = len(user_game_state)
     reply = f"Your user_id : {user_id}\nTotal users : {no_of_users}"
     await message.reply(reply)
 
+@dp.message(Command("wiki"))
+async def wiki_command(message: types.Message):
+    await message.reply("https://en.wikipedia.org/wiki/Morse_code")
 
 @dp.message(Command("play"))
 async def start(message: types.Message):
@@ -71,8 +84,16 @@ async def process_level_selection(callback_query: types.CallbackQuery):
         level = int(callback_query.data)
         user_game_state[user_id]["level"] = level  # Store the selected level
         await callback_query.answer()
-        await send_new_question(user_id, level)
 
+        # Disable markup by editing the message reply markup to None
+        await bot.edit_message_reply_markup(
+            chat_id=user_id,
+            message_id=callback_query.message.message_id,
+            reply_markup=None
+        )
+
+        await send_new_question(user_id, level)
+            
 
 async def send_new_question(user_id, level):
     question, options = generate_random_word_and_answer(level)
@@ -98,18 +119,36 @@ def get_quiz_keyboard(options):
 @dp.callback_query()
 async def process_answer_selection(callback_query: types.CallbackQuery):
     user_id = callback_query.from_user.id
+    
     if user_game_state.get(user_id, {}).get("playing", False):
         user_answer = callback_query.data
         correct_ans = user_game_state[user_id].get("correct_answer", "")
+        
         if user_answer == correct_ans:
             user_game_state[user_id]["score"] += 5
             await callback_query.answer("✅ Correct!")
+
+            # Remove the inline keyboard after selection
+            await bot.edit_message_reply_markup(
+                chat_id=user_id,
+                message_id=callback_query.message.message_id,
+                reply_markup=None
+            )
+            
             level = user_game_state[user_id].get("level", 2)
             await send_new_question(user_id, level)
         else:
             final_score = user_game_state[user_id]["score"]
             user_game_state[user_id]["playing"] = False
-            await callback_query.answer(f"❌ Wrong! The correct answer was: {correct_ans}")
+            
+            # Remove the inline keyboard after selection
+            await bot.edit_message_reply_markup(
+                chat_id=user_id,
+                message_id=callback_query.message.message_id,
+                reply_markup=None
+            )
+            
+            await callback_query.answer(f"❌ Wrong!\nCorrect answer was: {correct_ans}")
             await bot.send_message(user_id, f"Game Over! Your final score: {final_score}")
 
 
