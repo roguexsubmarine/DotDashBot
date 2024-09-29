@@ -153,9 +153,16 @@ async def process_answer_selection(callback_query: types.CallbackQuery):
 
 
 @dp.message()
-async def echo(message: types.Message):     
-    morse_code = morse(message.text) 
-    await message.reply(morse_code)  
+async def echo(message: types.Message):  
+
+    morse_code = morse(message.text)
+    
+    if morse_code is None or morse_code.strip() == "":
+        await message.reply("Sorry, I couldn't convert that to Morse code.")
+    else:
+        await message.reply(morse_code)
+     
+      
 
 def get_level_keyboard():
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
